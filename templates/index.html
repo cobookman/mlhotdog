@@ -275,7 +275,9 @@
         },
         onDrop: function(e) {
           let files = null;
-          if (e.dataTransfer.getData("text")) {
+          if (e.dataTransfer.getData("URL")) {
+            files = [e.dataTransfer.getData("URL")];
+          } else if (e.dataTransfer.getData("text")) {
             files = [e.dataTransfer.getData("text")];
           } else {
             files = e.dataTransfer.files;
@@ -367,9 +369,16 @@
               this.$hotdogOverlay.querySelector("#notHotdog").classList.remove("hide");
             }
 
-          }).catch(()=>{
-            alert("ERROR");
-            console.log(arguments);
+          }).catch((resp)=>{
+            let err = resp.srcElement.response;
+            try {
+              err = JSON.parse(err);
+            } catch(e) {
+              err = {"error": "Internal server error"};
+            }
+
+            this.$status.textContent = "Error: " + err.error;
+            console.error(resp);
           });
         }
       };

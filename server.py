@@ -26,35 +26,49 @@ def predict():
   elif "fileBinary" in payload:
     img = payload.get("fileBinary", None).split(",")[1]
   else:
-    return "{\"error\": \"no image\"}", 400
+    return json.dumps({"error": "no image"}), 400
 
   # Read in image as an Image in memory
-  buff = Image.open(io.BytesIO(base64.b64decode(img)))
+  try:
+    buff = Image.open(io.BytesIO(base64.b64decode(img)))
+  except:
+    logging.error(sys.exc_info())
+    return json.dumps({"error": "Not given a valid image"}), 400
 
   # Resize image to be at max 1024x1024
-  size = 1024, 1024
-  buff.thumbnail(size, Image.ANTIALIAS)
+  try:
+    size = 1024, 1024
+    buff.thumbnail(size, Image.ANTIALIAS)
 
-  # Convert image to JPEG
-  out_buff = io.BytesIO()
-  buff.convert("RGB").save(out_buff, format="JPEG")
+    # Convert image to JPEG
+    out_buff = io.BytesIO()
+    buff.convert("RGB").save(out_buff, format="JPEG")
 
-  # Output image as base64
-  out_buff.seek(0)
-  img = base64.b64encode((out_buff.getvalue())).decode("ascii")
+    # Output image as base64
+    out_buff.seek(0)
+    img = base64.b64encode((out_buff.getvalue())).decode("ascii")
 
-  service = googleapiclient.discovery.build("ml", "v1")
-  resp = service.projects().predict(
-      name="projects/jcham-1469824226729/models/hotdog",
-      body={
-          "instances": [{
-              "key": "0",
-              "image_bytes": {
-                  "b64": img,
-              },
-          }]
-      }).execute()
-  logging.info(resp)
+  except:
+    logging.error(sys.exc_info())
+    return json.dumps({"error": "Could not manipulate image to be a jpeg of 1024x1024"}), 500
+
+  try:
+    service = googleapiclient.discovery.build("ml", "v1")
+    resp = service.projects().predict(
+        name="projects/jcham-1469824226729/models/hotdog",
+        body={
+            "instances": [{
+                "key": "0",
+                "image_bytes": {
+                    "b64": img,
+                },
+            }]
+        }).execute()
+    logging.info(resp)
+  except e:
+    logging.error(sys.exc_info())
+    return json.dumps({"error": "Failed to get ML prediction"}), 500
+
   return json.dumps(resp)
 
 
