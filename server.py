@@ -3,19 +3,15 @@ import base64
 import sys
 import json
 import googleapiclient.discovery
-from PIL import Image
 import io
 import httplib2
+import logging
 
+from PIL import Image
 from urllib.request import urlopen
 from flask import Flask, render_template, request
+
 app = Flask(__name__)
-
-ML_SERVICE = googleapiclient.discovery.build("ml", "v1")
-
-def build_request(http, *args, **kwargs):
-  new_http = httplib2.Http()
-  return apiclient.http.HttpRequest(new_http, *args, **kwargs)
 
 @app.route("/", methods=["GET"])
 def home():
@@ -43,8 +39,8 @@ def predict():
   out_buff.seek(0)
   img = base64.b64encode((out_buff.getvalue())).decode("ascii")
 
-  service = googleapiclient.discovery.build("ml", "v1", requestBuilder=build_request)
-  resp = ML_SERVICE.projects().predict(
+  service = googleapiclient.discovery.build("ml", "v1")
+  resp = service.projects().predict(
       name="projects/jcham-1469824226729/models/hotdog",
       body={
           "instances": [{
@@ -54,11 +50,7 @@ def predict():
               },
           }]
       }).execute()
-  print(resp)
+  logging.info(resp)
   return json.dumps(resp)
 
-
-
-#if __name__ == "__main__":
-#  app.run()
 
