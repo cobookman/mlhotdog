@@ -31,6 +31,10 @@ def predict():
   # Read in image as an Image in memory
   buff = Image.open(io.BytesIO(base64.b64decode(img)))
 
+  # Resize image to be at max 1024x1024
+  size = 1024, 1024
+  buff.thumbnail(size, Image.ANTIALIAS)
+
   # Convert image to JPEG
   out_buff = io.BytesIO()
   buff.convert("RGB").save(out_buff, format="JPEG")
