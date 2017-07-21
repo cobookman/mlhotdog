@@ -5,34 +5,64 @@ import json
 import googleapiclient.discovery
 import io
 import httplib2
-import logging
+import urllib
 
 from PIL import Image
+from urllib import request, parse
 from urllib.request import urlopen
 from flask import Flask, render_template, request
+from google.cloud import logging
 
 app = Flask(__name__)
+client = logging.Client()
+logger = client.logger("mlhotdog")
 
 @app.route("/", methods=["GET"])
 def home():
   return render_template("index.html")
 
+@app.route("/tasks/keepmlalive")
+def keep_ml_alive():
+  data = json.dumps({"fileUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b1/Hot_dog_with_mustard.png/1200px-Hot_dog_with_mustard.png"}).encode()
+  req = urllib.request.Request(request.url_root + "api/predict", data=data, headers={"content-type": "application/json"})
+  resp = urllib.request.urlopen(req)
+  data = resp.read()
+  return "DONE"
+
 @app.route("/api/predict", methods=["POST"])
 def predict():
-  payload = json.loads(request.data.decode("utf-8"))
+  if request.data is None or not request.data.decode("utf-8"):
+    logger.log_struct({
+        "error": "no request body",
+        "request": request}, severity="ERROR")
+    return json.dumps({"error": "no request body"}), 400
+
+  try:
+    payload = json.loads(request.data.decode("utf-8"))
+  except:
+    logger.log_struct({
+        "error": "invalid json post payload",
+        "exception": sys.exc_info()}, severity="ERROR")
+    return json.dumps({"error": "invalid json post payload"}), 400
+
   img = None
   if "fileUrl" in payload:
-    img = base64.b64encode(urlopen(payload.get("fileUrl")).read())
+    try:
+      img = base64.b64encode(urlopen(payload.get("fileUrl")).read())
+    except:
+      logger.log_text({"error": "failed to fetch image", "url": payload.get("fileUrl"), "exception": sys.exc_info()})
+      return json.dumps({"error": "failed to fetch image", "url": payload.get("fileUrl")}), 500
   elif "fileBinary" in payload:
     img = payload.get("fileBinary", None).split(",")[1]
   else:
+    logger.log_struct({"error": "no image"}, severity="ERROR")
     return json.dumps({"error": "no image"}), 400
 
   # Read in image as an Image in memory
   try:
     buff = Image.open(io.BytesIO(base64.b64decode(img)))
   except:
-    logging.error(sys.exc_info())
+    logger.log_struct({"error": "not given valid image", "exception": sys.exc_info()}, severity="ERROR")
     return json.dumps({"error": "Not given a valid image"}), 400
 
   # Resize image to be at max 1024x1024
@@ -49,7 +79,7 @@ def predict():
     img = base64.b64encode((out_buff.getvalue())).decode("ascii")
 
   except:
-    logging.error(sys.exc_info())
+    logger.log_struct({"error": "Could not manipulate image to be a jpeg of 1024x1024", "exception": sys.exc_info()}, severity="ERROR")
     return json.dumps({"error": "Could not manipulate image to be a jpeg of 1024x1024"}), 500
 
   try:
@@ -64,9 +94,9 @@ def predict():
                 },
             }]
         }).execute()
-    logging.info(resp)
-  except e:
-    logging.error(sys.exc_info())
+    logger.log_struct({"predictionResp": resp}, severity="DEBUG")
+  except:
+    logger.log_struct({"error": "Failed to get ML Prediction", "exception": sys.exc_info()}, severity="ERROR")
     return json.dumps({"error": "Failed to get ML prediction"}), 500
 
   return json.dumps(resp)

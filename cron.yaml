@@ -1,0 +1,4 @@
+cron:
+  - description: "keep ml alive"
+    url: /tasks/keepmlalive
+    schedule: every 1 minutes
