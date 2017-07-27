@@ -23,6 +23,11 @@ def home():
 
 @app.route("/tasks/keepmlalive")
 def keep_ml_alive():
+  logger.log_struct({
+      "task": "keepmlalive",
+      "urlRoot": request.url_root,
+  })
+
   data = json.dumps({"fileUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b1/Hot_dog_with_mustard.png/1200px-Hot_dog_with_mustard.png"}).encode()
   req = urllib.request.Request(request.url_root + "api/predict", data=data, headers={"content-type": "application/json"})
   resp = urllib.request.urlopen(req)
@@ -31,12 +36,14 @@ def keep_ml_alive():
 
 @app.route("/api/predict", methods=["POST"])
 def predict():
+  print("Start of request")
   if request.data is None or not request.data.decode("utf-8"):
     logger.log_struct({
         "error": "no request body",
         "request": request}, severity="ERROR")
     return json.dumps({"error": "no request body"}), 400
 
+  print("Parsing payload as json")
   try:
     payload = json.loads(request.data.decode("utf-8"))
   except:
@@ -45,6 +52,7 @@ def predict():
         "exception": sys.exc_info()}, severity="ERROR")
     return json.dumps({"error": "invalid json post payload"}), 400
 
+  print("Getting image")
   img = None
   if "fileUrl" in payload:
     try:
@@ -59,6 +67,7 @@ def predict():
     return json.dumps({"error": "no image"}), 400
 
   # Read in image as an Image in memory
+  print("Reading image in memory")
   try:
     buff = Image.open(io.BytesIO(base64.b64decode(img)))
   except:
@@ -66,6 +75,7 @@ def predict():
     return json.dumps({"error": "Not given a valid image"}), 400
 
   # Resize image to be at max 1024x1024
+  print("Resizing image")
   try:
     size = 1024, 1024
     buff.thumbnail(size, Image.ANTIALIAS)
@@ -82,6 +92,7 @@ def predict():
     logger.log_struct({"error": "Could not manipulate image to be a jpeg of 1024x1024", "exception": sys.exc_info()}, severity="ERROR")
     return json.dumps({"error": "Could not manipulate image to be a jpeg of 1024x1024"}), 500
 
+  print("Starting to call ml service")
   try:
     service = googleapiclient.discovery.build("ml", "v1")
     resp = service.projects().predict(
@@ -94,11 +105,9 @@ def predict():
                 },
             }]
         }).execute()
-    logger.log_struct({"predictionResp": resp}, severity="DEBUG")
+    logger.log_struct({"predictionResp": json.dumps(resp)}, severity="DEBUG")
   except:
     logger.log_struct({"error": "Failed to get ML Prediction", "exception": sys.exc_info()}, severity="ERROR")
     return json.dumps({"error": "Failed to get ML prediction"}), 500
 
   return json.dumps(resp)
-
-
