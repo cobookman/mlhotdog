@@ -56,7 +56,8 @@ def predict():
   img = None
   if "fileUrl" in payload:
     try:
-      img = base64.b64encode(urlopen(payload.get("fileUrl")).read())
+      img = urlopen(payload.get("fileUrl")).read()
+      img = base64.b64encode(img)
     except:
       logger.log_text({"error": "failed to fetch image", "url": payload.get("fileUrl"), "exception": sys.exc_info()})
       return json.dumps({"error": "failed to fetch image", "url": payload.get("fileUrl")}), 500
